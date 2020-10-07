@@ -29,7 +29,7 @@ Build a Splunk query to find the DNS log with the UID matching the Phantom event
 def format_DNS_alert_query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('format_DNS_alert_query() called')
     
-    template = """index=corelight sourcetype=corelight_dns {0} earliest={1} latest=now() | table uid answer id.orig_h"""
+    template = """index=corelight sourcetype=corelight_dns {0} earliest={1} latest=now() | table uid answer id_orig_h"""
 
     # parameter list for template variable replacement
     parameters = [
@@ -64,7 +64,7 @@ def run_DNS_alert_query(action=None, success=None, container=None, results=None,
         'parse_only': False,
     })
 
-    phantom.act(action="run query", parameters=parameters, assets=['splunk-demo-main'], callback=filter_DNS_answer, name="run_DNS_alert_query")
+    phantom.act(action="run query", parameters=parameters, assets=['splunk-demo'], callback=filter_DNS_answer, name="run_DNS_alert_query")
 
     return
 
@@ -89,7 +89,7 @@ def run_source_dest_query(action=None, success=None, container=None, results=Non
         'parse_only': False,
     })
 
-    phantom.act(action="run query", parameters=parameters, assets=['splunk-demo-main'], callback=If_traffic_between_the_two_units, name="run_source_dest_query")
+    phantom.act(action="run query", parameters=parameters, assets=['splunk-demo'], callback=If_traffic_between_the_two_units, name="run_source_dest_query")
 
     return
 
@@ -120,9 +120,9 @@ Loop through each matching DNS alert from the previous Splunk query,  validate I
 def IP_regex_and_format_source_dest_query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('IP_regex_and_format_source_dest_query() called')
     
-    container_data = phantom.collect2(container=container, datapath=['artifact:*.cef.id_orig_h', 'artifact:*.id'])
+    results_data_1 = phantom.collect2(container=container, datapath=['run_DNS_alert_query:action_result.data.*.id_orig_h'], action_results=results)
     filtered_results_data_1 = phantom.collect2(container=container, datapath=['filtered-data:filter_DNS_answer:condition_1:run_DNS_alert_query:action_result.data.*.answer'])
-    container_item_0 = [item[0] for item in container_data]
+    results_item_1_0 = [item[0] for item in results_data_1]
     filtered_results_item_1_0 = [item[0] for item in filtered_results_data_1]
 
     IP_regex_and_format_source_dest_query__query = None
@@ -136,7 +136,7 @@ def IP_regex_and_format_source_dest_query(action=None, success=None, container=N
     #phantom.debug(container_item_0)
     #This query loops through the Corelight Answers and checks if a valid IP4/IP6 address
     # it then creates a query to check if there was a conn log entry between the two IP address.
-    id_orig_h = str(container_item_0[0])
+    id_orig_h = str(results_data_1[0][0])
     query_base = "index=corelight id.orig_h = " + id_orig_h + " AND id.resp_h = "
     IPregex = '''^(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.( 
             25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.( 
@@ -191,7 +191,7 @@ def query_connections(action=None, success=None, container=None, results=None, h
             'parse_only': False,
         })
 
-    phantom.act(action="run query", parameters=parameters, assets=['splunk-demo-main'], callback=filter_nonzero_bytes, name="query_connections")
+    phantom.act(action="run query", parameters=parameters, assets=['splunk-demo'], callback=filter_nonzero_bytes, name="query_connections")
 
     return
 
@@ -294,7 +294,7 @@ def run_HTTP_query(action=None, success=None, container=None, results=None, hand
         'parse_only': False,
     })
 
-    phantom.act(action="run query", parameters=parameters, assets=['splunk-demo-main'], callback=format_http_note, name="run_HTTP_query")
+    phantom.act(action="run query", parameters=parameters, assets=['splunk-demo'], callback=format_http_note, name="run_HTTP_query")
 
     return
 
@@ -338,7 +338,7 @@ def run_suricata_query(action=None, success=None, container=None, results=None, 
         'parse_only': False,
     })
 
-    phantom.act(action="run query", parameters=parameters, assets=['splunk-demo-main'], callback=filter_valid_suricata_alerts, name="run_suricata_query")
+    phantom.act(action="run query", parameters=parameters, assets=['splunk-demo'], callback=filter_valid_suricata_alerts, name="run_suricata_query")
 
     return
 
@@ -382,7 +382,7 @@ def run_file_query(action=None, success=None, container=None, results=None, hand
         'parse_only': False,
     })
 
-    phantom.act(action="run query", parameters=parameters, assets=['splunk-demo-main'], callback=filter_valid_files, name="run_file_query")
+    phantom.act(action="run query", parameters=parameters, assets=['splunk-demo'], callback=filter_valid_files, name="run_file_query")
 
     return
 
@@ -407,7 +407,7 @@ def run_SSL_query(action=None, success=None, container=None, results=None, handl
         'parse_only': False,
     })
 
-    phantom.act(action="run query", parameters=parameters, assets=['splunk-demo-main','splunk-demo-main'], callback=format_ssl_note, name="run_SSL_query")
+    phantom.act(action="run query", parameters=parameters, assets=['splunk-demo','splunk-demo'], callback=format_ssl_note, name="run_SSL_query")
 
     return
 
@@ -433,7 +433,7 @@ def file_reputation_1(action=None, success=None, container=None, results=None, h
                 'context': {'artifact_id': results_item_1[1]},
             })
 
-    phantom.act(action="file reputation", parameters=parameters, assets=['virustotal'], callback=filter_7, name="file_reputation_1")
+    phantom.act(action="file reputation", parameters=parameters, assets=['public-vt'], callback=filter_7, name="file_reputation_1")
 
     return
 
@@ -443,11 +443,11 @@ Update the heads-up display with the DNS query.
 def pin_DNS_alert(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('pin_DNS_alert() called')
 
-    container_data = phantom.collect2(container=container, datapath=['artifact:*.cef.query', 'artifact:*.id'])
+    results_data_1 = phantom.collect2(container=container, datapath=['run_DNS_alert_query:action_result.data.*.query'], action_results=results)
 
-    container_item_0 = [item[0] for item in container_data]
+    results_item_1_0 = [item[0] for item in results_data_1]
 
-    phantom.pin(container=container, data=container_item_0, message="Connection to Alerted DNS Address", pin_type="card", pin_style="red", name=None)
+    phantom.pin(container=container, data=results_item_1_0, message="Connection to Alerted DNS Address", pin_type="card", pin_style="red", name=None)
 
     return
 
