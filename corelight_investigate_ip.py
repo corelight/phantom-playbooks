@@ -68,7 +68,7 @@ Format a query for all external connections from the suspect host between now an
 def Format_External_IP_Query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('Format_External_IP_Query() called')
     
-    template = """index=corelight sourcetype=corelight_conn {0} local_resp=\"false\" earliest={1} latest=now() | table uid dest_ip id.resp_p resp_cc service"""
+    template = """index=corelight sourcetype=corelight_conn {0} local_resp=\"false\" earliest={1} latest=now() | table dest_ip id_resp_p resp_cc service | stats count by service, dest_ip, resp_cc, id_resp_p"""
 
     # parameter list for template variable replacement
     parameters = [
@@ -113,7 +113,7 @@ Format a query for all internal connections from the suspect host between now an
 def Format_Internal_IP_Query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('Format_Internal_IP_Query() called')
     
-    template = """index=corelight sourcetype=corelight_conn {0} local_resp=\"true\" earliest={1} latest=now() | fields uid dest_ip id.resp_p resp_cc service"""
+    template = """index=corelight sourcetype=corelight_conn {0} local_resp=\"true\" earliest={1} latest=now() | fields dest_ip id.resp_p resp_cc service | stats count by service, dest_ip, resp_cc, id_resp_p"""
 
     # parameter list for template variable replacement
     parameters = [
@@ -226,11 +226,12 @@ Format a query to collect HTTP indicators
 def Format_HTTP_query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('Format_HTTP_query() called')
     
-    template = """index=corelight sourcetype=corelight_http uid IN ({0}) | table uid method host uri status_code resp_mime_types user_agent"""
+    template = """index=corelight sourcetype=corelight_http id_orig_h={0} earliest={1} latest=now() | spath host | table uid method host uri status_code resp_mime_types user_agent"""
 
     # parameter list for template variable replacement
     parameters = [
-        "filtered-data:Service_Branch:condition_1:Execute_External_IP_Query:action_result.data.*.uid",
+        "artifact:*.cef.sourceAddress",
+        "CalcLookbackWindow:custom_function_result.data.epoch_time",
     ]
 
     phantom.format(container=container, template=template, parameters=parameters, name="Format_HTTP_query")
@@ -270,11 +271,12 @@ Format a query to collect SSL indicators
 def Format_SSL_query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('Format_SSL_query() called')
     
-    template = """index=corelight sourcetype=corelight_ssl uid IN ({0}) | table uid subject validation_status version ja3 ja3s"""
+    template = """index=corelight sourcetype=corelight_ssl src_ip={0} earliest={1} latest=now()| table uid subject validation_status version ja3 ja3s"""
 
     # parameter list for template variable replacement
     parameters = [
-        "filtered-data:Service_Branch:condition_2:Execute_External_IP_Query:action_result.data.*.uid",
+        "artifact:*.cef.sourceAddress",
+        "CalcLookbackWindow:custom_function_result.data.epoch_time",
     ]
 
     phantom.format(container=container, template=template, parameters=parameters, name="Format_SSL_query")
@@ -314,11 +316,12 @@ Format a query to collect DNS indicators
 def Format_DNS_query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('Format_DNS_query() called')
     
-    template = """index=corelight sourcetype=corelight_dns uid IN ({0}) | table uid query answers qtype_name rcode_name"""
+    template = """index=corelight sourcetype=corelight_dns id.orig_h={0} earliest={1} latest=now() | table uid query answers qtype_name rcode_name"""
 
     # parameter list for template variable replacement
     parameters = [
-        "filtered-data:Service_Branch:condition_3:Execute_External_IP_Query:action_result.data.*.uid",
+        "artifact:*.cef.sourceAddress",
+        "CalcLookbackWindow:custom_function_result.data.epoch_time",
     ]
 
     phantom.format(container=container, template=template, parameters=parameters, name="Format_DNS_query")
@@ -431,11 +434,12 @@ Format a query to collect SMB indicators
 def Format_SMB_query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('Format_SMB_query() called')
     
-    template = """index=corelight path=corelight_smb_files uid IN({0}) | table uid dest_ip action name fuid"""
+    template = """index=corelight path=corelight_smb_files src_ip={0} earliest={1} latest=now | table uid dest_ip action name fuid"""
 
     # parameter list for template variable replacement
     parameters = [
-        "filtered-data:Internal_Service_Filter:condition_1:Execute_Internal_IP_Query:action_result.data.*.uid",
+        "artifact:*.cef.sourceAddress",
+        "CalcLookbackWindow:custom_function_result.data.epoch_time",
     ]
 
     phantom.format(container=container, template=template, parameters=parameters, name="Format_SMB_query")
@@ -519,11 +523,12 @@ Format a query to collect details about SMB shares connected to
 def Format_SMB_Mappings_query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('Format_SMB_Mappings_query() called')
     
-    template = """index=corelight path=corelight_smb_mapping uid IN({0}) | table uid dest_ip path service share_type"""
+    template = """index=corelight path=corelight_smb_mapping src_ip={0} earliest={1} latest=now() | table uid dest_ip path service share_type"""
 
     # parameter list for template variable replacement
     parameters = [
-        "filtered-data:Internal_Service_Filter:condition_1:Execute_Internal_IP_Query:action_result.data.*.uid",
+        "artifact:*.cef.sourceAddress",
+        "CalcLookbackWindow:custom_function_result.data.epoch_time",
     ]
 
     phantom.format(container=container, template=template, parameters=parameters, name="Format_SMB_Mappings_query")
@@ -563,11 +568,12 @@ Format a query to collect NTLM indicators
 def Format_NTLM_query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('Format_NTLM_query() called')
     
-    template = """index=corelight sourcetype=corelight_ntlm uid in ({0}) | table uid dest_ip domainname server_dns_computername server_nb_computername success"""
+    template = """index=corelight sourcetype=corelight_ntlm src_ip={0} earliest={1} latest=now() | table uid dest_ip domainname server_dns_computername server_nb_computername success"""
 
     # parameter list for template variable replacement
     parameters = [
-        "filtered-data:Internal_Service_Filter:condition_3:Execute_Internal_IP_Query:action_result.data.*.uid",
+        "artifact:*.cef.sourceAddress",
+        "CalcLookbackWindow:custom_function_result.data.epoch_time",
     ]
 
     phantom.format(container=container, template=template, parameters=parameters, name="Format_NTLM_query")
@@ -607,11 +613,12 @@ Format a query to collect DCE/RPC indicators
 def Format_DCE_RPC_query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('Format_DCE_RPC_query() called')
     
-    template = """index=corelight sourcetype=corelight_dce_rpc uid in ({0}) | table uid dest_ip endpoint operation named_pipe"""
+    template = """index=corelight sourcetype=corelight_dce_rpc  src_ip={0} earliest={1} latest=now() | table uid dest_ip endpoint operation named_pipe"""
 
     # parameter list for template variable replacement
     parameters = [
-        "filtered-data:Internal_Service_Filter:condition_2:Execute_Internal_IP_Query:action_result.data.*.uid",
+        "artifact:*.cef.sourceAddress",
+        "CalcLookbackWindow:custom_function_result.data.epoch_time",
     ]
 
     phantom.format(container=container, template=template, parameters=parameters, name="Format_DCE_RPC_query")
@@ -651,11 +658,12 @@ Format a query to collect DNS indicators
 def Format_DNS_query_2(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('Format_DNS_query_2() called')
     
-    template = """index=corelight sourcetype=corelight_dns uid IN ({0}) | table uid query answers qtype_name rcode_name"""
+    template = """index=corelight sourcetype=corelight_dns src_ip={0} earliest={1} latest=now() | table uid query answers qtype_name rcode_name"""
 
     # parameter list for template variable replacement
     parameters = [
-        "filtered-data:Internal_Service_Filter:condition_4:Execute_Internal_IP_Query:action_result.data.*.uid",
+        "artifact:*.cef.sourceAddress",
+        "CalcLookbackWindow:custom_function_result.data.epoch_time",
     ]
 
     phantom.format(container=container, template=template, parameters=parameters, name="Format_DNS_query_2")
@@ -1061,11 +1069,12 @@ Format a query to collect Kerberos indicators
 def Format_Kerberos_Query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('Format_Kerberos_Query() called')
     
-    template = """index=corelight sourcetype=corelight_kerberos uid in ({0}) | table uid dest_ip client service request_type success cipher error_message"""
+    template = """index=corelight sourcetype=corelight_kerberos src_ip={0} earliest={1} latest=now() | table uid dest_ip client service request_type success cipher error_message"""
 
     # parameter list for template variable replacement
     parameters = [
-        "filtered-data:Extra_service_branch:condition_1:Execute_Internal_IP_Query:action_result.data.*.uid",
+        "artifact:*.cef.sourceAddress",
+        "CalcLookbackWindow:custom_function_result.data.epoch_time",
     ]
 
     phantom.format(container=container, template=template, parameters=parameters, name="Format_Kerberos_Query")
@@ -1105,7 +1114,7 @@ Format a query to retrieve Suricata events triggered for system being investigat
 def Format_Suricata_query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('Format_Suricata_query() called')
     
-    template = """index=corelight sourcetype=corelight_suricata_corelight {0} earliest={1} latest=now() | table uid alert.signature alert.sid alert.severity dest_ip metadata alert.metadata"""
+    template = """index=corelight sourcetype=corelight_suricata_corelight src_ip={0} earliest={1} latest=now() | table uid alert.signature alert.sid alert.severity dest_ip metadata alert.metadata"""
 
     # parameter list for template variable replacement
     parameters = [
