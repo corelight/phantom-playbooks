@@ -64,7 +64,7 @@ def run_DNS_alert_query(action=None, success=None, container=None, results=None,
         'parse_only': False,
     })
 
-    phantom.act(action="run query", parameters=parameters, assets=['splunk-demo'], callback=filter_DNS_answer, name="run_DNS_alert_query")
+    phantom.act(action="run query", parameters=parameters, assets=['splunk-demo'], callback=IP_regex_and_format_source_dest_query, name="run_DNS_alert_query")
 
     return
 
@@ -110,7 +110,7 @@ def If_traffic_between_the_two_units(action=None, success=None, container=None, 
     # call connected blocks if filtered artifacts or results
     if matched_artifacts_1 or matched_results_1:
         pin_DNS_alert(action=action, success=success, container=container, results=results, handle=handle, custom_function=custom_function, filtered_artifacts=matched_artifacts_1, filtered_results=matched_results_1)
-        format_connection_query(action=action, success=success, container=container, results=results, handle=handle, custom_function=custom_function, filtered_artifacts=matched_artifacts_1, filtered_results=matched_results_1)
+        multi_connection_query_construct(action=action, success=success, container=container, results=results, handle=handle, custom_function=custom_function, filtered_artifacts=matched_artifacts_1, filtered_results=matched_results_1)
 
     return
 
@@ -120,10 +120,11 @@ Loop through each matching DNS alert from the previous Splunk query,  validate I
 def IP_regex_and_format_source_dest_query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('IP_regex_and_format_source_dest_query() called')
     
-    results_data_1 = phantom.collect2(container=container, datapath=['run_DNS_alert_query:action_result.data.*.id_orig_h'], action_results=results)
-    filtered_results_data_1 = phantom.collect2(container=container, datapath=['filtered-data:filter_DNS_answer:condition_1:run_DNS_alert_query:action_result.data.*.answer'])
+    results_data_1 = phantom.collect2(container=container, datapath=['run_DNS_alert_query:action_result.data.*.answer', 'run_DNS_alert_query:action_result.data.*.id_orig_h'], action_results=results)
+    custom_function_results_data_1 = phantom.collect2(container=container, datapath=['timestamp_to_epoch:custom_function_result.data.epoch_time'], action_results=results)
     results_item_1_0 = [item[0] for item in results_data_1]
-    filtered_results_item_1_0 = [item[0] for item in filtered_results_data_1]
+    results_item_1_1 = [item[1] for item in results_data_1]
+    custom_function_results_item_1_0 = [item[0] for item in custom_function_results_data_1]
 
     IP_regex_and_format_source_dest_query__query = None
     IP_regex_and_format_source_dest_query__id_resp_h = None
@@ -136,27 +137,44 @@ def IP_regex_and_format_source_dest_query(action=None, success=None, container=N
     #phantom.debug(container_item_0)
     #This query loops through the Corelight Answers and checks if a valid IP4/IP6 address
     # it then creates a query to check if there was a conn log entry between the two IP address.
-    id_orig_h = str(results_data_1[0][0])
-    query_base = "index=corelight id.orig_h = " + id_orig_h + " AND id.resp_h = "
+    id_orig_h = str(results_item_1_1[0])
+    phantom.debug(id_orig_h)
+    query_base = "index=corelight sourcetype = corelight_conn earliest = " + str(custom_function_results_item_1_0[0]) + " id.orig_h = " + id_orig_h + " AND id.resp_h = "
     IPregex = '''^(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.( 
             25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.( 
             25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.( 
             25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)$'''
     
-    for results_item_1 in filtered_results_data_1:
-        if results_item_1[0]:
-            for item in results_item_1:
-                id_resp_h = str(item)
-                phantom.debug(id_resp_h)
-                if (re.search(IPregex, id_resp_h)):
-                    query = query_base + id_resp_h + " | stats count(id.orig_h) as count by id.resp_h uid"
-                    phantom.debug(query)
-                    IP_regex_and_format_source_dest_query__id_resp_h = id_resp_h
-                    #phantom.debug(id_resp_h)
-                    phantom.save_run_data(key='IP_regex_and_format_source_dest_query:query', value=json.dumps(query))
-                    phantom.save_run_data(key='IP_regex_and_format_source_dest_query:id_resp_h', value=json.dumps(IP_regex_and_format_source_dest_query__id_resp_h))
-                    run_source_dest_query(container=container)
+    # Equivalent of our old filter checking for an empty string
+    if (results_item_1_0[0] is None):
+        phantom.debug("Caught a null, no answers found")
+        return
 
+    # If we got a single answer back, it'll be a string
+    # We deal with it directly vs untangling the loop
+    if (isinstance(results_item_1_0[0], str)):
+        id_resp_h=str(results_item_1_0[0])
+        if (re.search(IPregex, id_resp_h)):
+            phantom.debug("String was an IP address")
+            query = query_base + id_resp_h + "| stats count(id.orig_h) as count by id.resp_h uid"
+            phantom.debug(query)
+            IP_regex_and_format_source_dest_query__id_resp_h = id_resp_h
+            phantom.save_run_data(key='IP_regex_and_format_source_dest_query:query', value=json.dumps(query))
+            phantom.save_run_data(key='IP_regex_and_format_source_dest_query:id_resp_h', value=json.dumps(IP_regex_and_format_source_dest_query__id_resp_h))
+            run_source_dest_query(container=container)
+        return
+    
+    # Assuming that if we were not null and not a string we're a list of results
+    for item in results_item_1_0[0]:
+        id_resp_h = str(item)
+        phantom.debug(id_resp_h)
+        if (re.search(IPregex, id_resp_h)):
+            query = query_base + id_resp_h + " | stats count(id.orig_h) as count by id.resp_h uid"
+            phantom.debug(query)
+            IP_regex_and_format_source_dest_query__id_resp_h = id_resp_h
+            phantom.save_run_data(key='IP_regex_and_format_source_dest_query:query', value=json.dumps(query))
+            phantom.save_run_data(key='IP_regex_and_format_source_dest_query:id_resp_h', value=json.dumps(IP_regex_and_format_source_dest_query__id_resp_h))
+            run_source_dest_query(container=container)
     return
 
     ################################################################################
@@ -177,19 +195,18 @@ def query_connections(action=None, success=None, container=None, results=None, h
         
     #phantom.debug('Action: {0} {1}'.format(action['name'], ('SUCCEEDED' if success else 'FAILED')))
     
+    multi_connection_query_construct__query = json.loads(phantom.get_run_data(key='multi_connection_query_construct:query'))
     # collect data for 'query_connections' call
-    formatted_data_1 = phantom.get_format_data(name='format_connection_query__as_list')
 
     parameters = []
     
     # build parameters list for 'query_connections' call
-    for formatted_part_1 in formatted_data_1:
-        parameters.append({
-            'query': formatted_part_1,
-            'command': "search",
-            'display': "",
-            'parse_only': False,
-        })
+    parameters.append({
+        'query': multi_connection_query_construct__query,
+        'command': "search",
+        'display': "",
+        'parse_only': False,
+    })
 
     phantom.act(action="run query", parameters=parameters, assets=['splunk-demo'], callback=filter_nonzero_bytes, name="query_connections")
 
@@ -260,7 +277,7 @@ Format a detailed query to collect plaintext HTTP indicators to present to analy
 def format_HTTP_query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('format_HTTP_query() called')
     
-    template = """index=corelight sourcetype=corelight_http {0} | table ts uid host uri method referrer user_agent"""
+    template = """index=corelight sourcetype=corelight_http {0} | spath host | table ts uid host uri method referrer user_agent"""
 
     # parameter list for template variable replacement
     parameters = [
@@ -623,27 +640,6 @@ def filter_valid_files(action=None, success=None, container=None, results=None, 
     return
 
 """
-Only proceed if the DNS log matching our original malicious lookup returned a result where the DNS query was answered.
-"""
-def filter_DNS_answer(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
-    phantom.debug('filter_DNS_answer() called')
-
-    # collect filtered artifact ids for 'if' condition 1
-    matched_artifacts_1, matched_results_1 = phantom.condition(
-        container=container,
-        action_results=results,
-        conditions=[
-            ["run_DNS_alert_query:action_result.data.*.answer", "!=", ""],
-        ],
-        name="filter_DNS_answer:condition_1")
-
-    # call connected blocks if filtered artifacts or results
-    if matched_artifacts_1 or matched_results_1:
-        IP_regex_and_format_source_dest_query(action=action, success=success, container=container, results=results, handle=handle, custom_function=custom_function, filtered_artifacts=matched_artifacts_1, filtered_results=matched_results_1)
-
-    return
-
-"""
 Convert the timestamp in the alert from ISO 8601 format to a unix epoch timestamp. 
 """
 def timestamp_to_epoch(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
@@ -683,33 +679,12 @@ def timestamp_to_epoch(action=None, success=None, container=None, results=None, 
     return
 
 """
-Format another Splunk query to use the UID from the previous query to list all matching corelight_conn log entries.
-"""
-def format_connection_query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
-    phantom.debug('format_connection_query() called')
-    
-    template = """%%
-index=corelight sourcetype=corelight_conn {0} | table *
-%%"""
-
-    # parameter list for template variable replacement
-    parameters = [
-        "run_source_dest_query:action_result.data.*.uid",
-    ]
-
-    phantom.format(container=container, template=template, parameters=parameters, name="format_connection_query")
-
-    query_connections(container=container)
-
-    return
-
-"""
 Format a query to look for the metadata of files detected in the connection stream by Corelight.
 """
 def format_file_query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('format_file_query() called')
     
-    template = """index=corelight sourcetype=corelight_files {0} | table tx_hosts{{}} rx_hosts{{}} filename mime_type source sha1"""
+    template = """index=corelight sourcetype=corelight_files {0} | spath source | table tx_hosts{{}} rx_hosts{{}} filename mime_type source sha1"""
 
     # parameter list for template variable replacement
     parameters = [
@@ -748,6 +723,37 @@ User-Agent = {5}"""
     phantom.format(container=container, template=template, parameters=parameters, name="format_http_note")
 
     add_HTTP_metadata_note(container=container)
+
+    return
+
+def multi_connection_query_construct(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
+    phantom.debug('multi_connection_query_construct() called')
+    
+    results_data_1 = phantom.collect2(container=container, datapath=['run_source_dest_query:action_result.data.*.uid'], action_results=results)
+    results_item_1_0 = [item[0] for item in results_data_1]
+
+    multi_connection_query_construct__query = None
+
+    ################################################################################
+    ## Custom Code Start
+    ################################################################################
+
+    for uid in results_data_1:
+        query = "index=corelight sourcetype=corelight_conn " + uid[0] + " | table *"
+        phantom.save_run_data(key='multi_connection_query_construct:query', value=json.dumps(query))
+        query_connections(container=container)
+    phantom.debug("Returning from format_connection_query")
+    return
+        
+    ##########
+    ##########
+    ##########
+    ################################################################################
+    ## Custom Code End
+    ################################################################################
+
+    phantom.save_run_data(key='multi_connection_query_construct:query', value=json.dumps(multi_connection_query_construct__query))
+    query_connections(container=container)
 
     return
 
