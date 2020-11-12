@@ -68,7 +68,7 @@ Format a query for all external connections from the suspect host between now an
 def Format_External_IP_Query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('Format_External_IP_Query() called')
     
-    template = """index=corelight sourcetype=corelight_conn {0} local_resp=\"false\" earliest={1} latest=now() | table dest_ip id_resp_p resp_cc service | stats count by service, dest_ip, resp_cc, id_resp_p"""
+    template = """index=corelight sourcetype=corelight_conn {0} local_resp=\"false\" earliest={1} latest=now() | eval resp_cc=if(isnull(resp_cc), \" \", resp_cc) | fields dest_ip id.resp_p resp_cc service | stats count by dest_ip, service, id.resp_p, resp_cc | sort dest_ip, service"""
 
     # parameter list for template variable replacement
     parameters = [
@@ -113,7 +113,7 @@ Format a query for all internal connections from the suspect host between now an
 def Format_Internal_IP_Query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('Format_Internal_IP_Query() called')
     
-    template = """index=corelight sourcetype=corelight_conn {0} local_resp=\"true\" earliest={1} latest=now() | fields dest_ip id.resp_p resp_cc service | stats count by service, dest_ip, resp_cc, id_resp_p"""
+    template = """index=corelight sourcetype=corelight_conn {0} local_resp=\"true\" earliest={1} latest=now() | eval resp_cc=if(isnull(resp_cc), \" \", resp_cc) | fields dest_ip id.resp_p resp_cc service | stats count by dest_ip, service, id.resp_p, resp_cc | sort dest_ip, service"""
 
     # parameter list for template variable replacement
     parameters = [
