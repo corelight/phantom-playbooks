@@ -479,7 +479,7 @@ Format a query for all software passively detected by Corelight in the previousl
 def Format_Software_query(action=None, success=None, container=None, results=None, handle=None, filtered_artifacts=None, filtered_results=None, custom_function=None, **kwargs):
     phantom.debug('Format_Software_query() called')
     
-    template = """index=corelight sourcetype=corelight_software | spath host | search host=\"{0}\""""
+    template = """index=corelight sourcetype=corelight_software | spath host | search host=\"{0}\" | table *"""
 
     # parameter list for template variable replacement
     parameters = [
