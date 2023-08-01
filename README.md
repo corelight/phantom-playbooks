@@ -3,7 +3,7 @@
 </p>
 </br>
 
-This is the Corelight Repository for Community Playbooks developed for Splunk Phantom. Any questions please reach out to phantom-playbooks@corelight.com
+This is the Corelight Repository for Community Playbooks developed for Splunk Phantom. These provide some examples for you to craft your own playbooks.  
 
 ## Corelight Investigate DNS Alert
 
@@ -24,4 +24,4 @@ Please use Splunk Phantom's [import](https://docs.splunk.com/Documentation/Phant
 
 
 ## Thanks
-These playbooks are created by the community to speed up the analyst response time and potentially decrease false positives. Security should be a team effort!
+These playbooks are created by the community to speed up the analyst response time and potentially decrease false positives. Security should be a team effort!  Any questions please reach out to phantom-playbooks@corelight.com rather than opening Issues here.  Hope these can help get you started.
